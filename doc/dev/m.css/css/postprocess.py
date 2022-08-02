@@ -43,7 +43,7 @@ def postprocess(files, process_imports, out_file):
 
     if not out_file:
         basename, ext = os.path.splitext(files[0])
-        out_file = basename + ".compiled" + ext
+        out_file = f"{basename}.compiled{ext}"
 
     variables = {}
     imported_files = []

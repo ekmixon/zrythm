@@ -34,16 +34,18 @@ link_regexp = re.compile(r'(?P<title>.*) <(?P<link>.+)>')
 
 def parse_link(text):
     link = utils.unescape(text)
-    m = link_regexp.match(link)
-    if m: return m.group('title', 'link')
+    if m := link_regexp.match(link):
+        return m.group('title', 'link')
     return None, link
 
 def abbr(name, rawtext, text, lineno, inliner, options={}, content=[]):
     abbr, title = parse_link(text)
     set_classes(options)
-    if not abbr:
-        return [nodes.abbreviation(title, title, **options)], []
-    return [nodes.abbreviation(abbr, abbr, title=title, **options)], []
+    return (
+        ([nodes.abbreviation(abbr, abbr, title=title, **options)], [])
+        if abbr
+        else ([nodes.abbreviation(title, title, **options)], [])
+    )
 
 def register():
     rst.roles.register_local_role('abbr', abbr)

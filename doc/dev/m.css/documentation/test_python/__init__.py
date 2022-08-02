@@ -35,7 +35,10 @@ class BaseTestCase(unittest.TestCase):
     def __init__(self, path, dir, *args, **kwargs):
         unittest.TestCase.__init__(self, *args, **kwargs)
         # Full directory name (for test_something.py the directory is something_dir{}
-        self.dirname = os.path.splitext(os.path.basename(path))[0][5:] + ('_' + dir if dir else '')
+        self.dirname = os.path.splitext(os.path.basename(path))[0][5:] + (
+            f'_{dir}' if dir else ''
+        )
+
         # Absolute path to this directory
         self.path = os.path.join(os.path.dirname(os.path.realpath(path)), self.dirname)
 

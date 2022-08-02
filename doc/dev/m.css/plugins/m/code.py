@@ -50,11 +50,13 @@ def _highlight(code, language, options, is_block):
         try:
             lexer = get_lexer_by_name(language)
         except ValueError:
-            logger.warning("No lexer found for language '{}', code highlighting disabled".format(language))
+            logger.warning(
+                f"No lexer found for language '{language}', code highlighting disabled"
+            )
+
             lexer = TextLexer()
 
-    if (isinstance(lexer, BashSessionLexer) or
-        isinstance(lexer, ansilexer.AnsiLexer)):
+    if isinstance(lexer, (BashSessionLexer, ansilexer.AnsiLexer)):
         class_ = 'm-console'
     else:
         class_ = 'm-code'
@@ -102,7 +104,7 @@ class Include(docutils.parsers.rst.directives.misc.Include):
         that just calls to our Code instead of builtin CodeBlock but otherwise
         just passes it back to the parent implementation.
         """
-        if not 'code' in self.options:
+        if 'code' not in self.options:
             return docutils.parsers.rst.directives.misc.Include.run(self)
 
         source = self.state_machine.input_lines.source(
@@ -143,18 +145,14 @@ class Include(docutils.parsers.rst.directives.misc.Include):
         except UnicodeError as error:
             raise self.severe('Problem with "%s" directive:\n%s' %
                               (self.name, ErrorString(error)))
-        # start-after/end-before: no restrictions on newlines in match-text,
-        # and no restrictions on matching inside lines vs. line boundaries
-        after_text = self.options.get('start-after', None)
-        if after_text:
+        if after_text := self.options.get('start-after', None):
             # skip content in rawtext before *and incl.* a matching text
             after_index = rawtext.find(after_text)
             if after_index < 0:
                 raise self.severe('Problem with "start-after" option of "%s" '
                                   'directive:\nText not found.' % self.name)
             rawtext = rawtext[after_index + len(after_text):]
-        before_text = self.options.get('end-before', None)
-        if before_text:
+        if before_text := self.options.get('end-before', None):
             # skip content in rawtext after *and incl.* a matching text
             before_index = rawtext.find(before_text)
             if before_index < 0:
@@ -189,7 +187,7 @@ def code(role, rawtext, text, lineno, inliner, options={}, content=[]):
         del options['classes']
 
     # If language is not specified, render a simple literal
-    if not 'language' in options:
+    if 'language' not in options:
         content = nodes.raw('', utils.unescape(text), format='html')
         node = nodes.literal(rawtext, '', **options)
         node.append(content)

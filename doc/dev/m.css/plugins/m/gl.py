@@ -34,15 +34,16 @@ link_regexp = re.compile(r'(?P<title>.*) <(?P<link>.+)>')
 
 def parse_link(text):
     link = utils.unescape(text)
-    m = link_regexp.match(link)
-    if m: return m.group('title', 'link')
+    if m := link_regexp.match(link):
+        return m.group('title', 'link')
     return None, link
 
 def glext(name, rawtext, text, lineno, inliner, options={}, content=[]):
     title, extension = parse_link(text)
     if not title: title = extension
     prefix = extension.partition('_')[0]
-    url = "https://www.khronos.org/registry/OpenGL/extensions/{}/{}.txt".format(prefix, extension)
+    url = f"https://www.khronos.org/registry/OpenGL/extensions/{prefix}/{extension}.txt"
+
     set_classes(options)
     node = nodes.reference(rawtext, title, refuri=url, **options)
     return [node], []
@@ -50,15 +51,16 @@ def glext(name, rawtext, text, lineno, inliner, options={}, content=[]):
 def webglext(name, rawtext, text, lineno, inliner, options={}, content=[]):
     title, extension = parse_link(text)
     if not title: title = extension
-    url = "https://www.khronos.org/registry/webgl/extensions/{}/".format(extension)
+    url = f"https://www.khronos.org/registry/webgl/extensions/{extension}/"
     set_classes(options)
     node = nodes.reference(rawtext, title, refuri=url, **options)
     return [node], []
 
 def glfn(name, rawtext, text, lineno, inliner, options={}, content=[]):
     title, fn = parse_link(text)
-    if not title: title = "gl{}()".format(fn)
-    url = "https://www.khronos.org/registry/OpenGL-Refpages/gl4/html/gl{}.xhtml".format(fn)
+    if not title:
+        title = f"gl{fn}()"
+    url = f"https://www.khronos.org/registry/OpenGL-Refpages/gl4/html/gl{fn}.xhtml"
     set_classes(options)
     node = nodes.reference(rawtext, title, refuri=url, **options)
     return [node], []
@@ -66,9 +68,10 @@ def glfn(name, rawtext, text, lineno, inliner, options={}, content=[]):
 def glfnext(name, rawtext, text, lineno, inliner, options={}, content=[]):
     title, extension = parse_link(text)
     prefix = extension.partition('_')[0]
-    url = "https://www.khronos.org/registry/OpenGL/extensions/{}/{}.txt".format(prefix, extension)
+    url = f"https://www.khronos.org/registry/OpenGL/extensions/{prefix}/{extension}.txt"
+
     set_classes(options)
-    node = nodes.reference(rawtext, "gl" + title + prefix + "()", refuri=url, **options)
+    node = nodes.reference(rawtext, f"gl{title}{prefix}()", refuri=url, **options)
     return [node], []
 
 def register():

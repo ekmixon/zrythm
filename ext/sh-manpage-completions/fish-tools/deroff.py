@@ -370,8 +370,7 @@ class Deroffer:
 
     def get_output(self):
         res = ''.join(self.output)
-        clean_res = Deroffer.g_re_newline_collapse.sub('\n', res)
-        return clean_res
+        return Deroffer.g_re_newline_collapse.sub('\n', res)
 
     def putchar(self, c):
         self.output.append(c)
@@ -416,7 +415,7 @@ class Deroffer:
         return True
 
     def font2(self):
-        if self.s[0:2] == '\\f':
+        if self.s[:2] == '\\f':
             c = self.str_at(2)
             if c == '(' and self.prch(3) and self.prch(4):
                 self.skip_char(5)
@@ -437,20 +436,20 @@ class Deroffer:
 
     def numreq(self):
         # We require that the string starts with backslash
-        if self.str_at(1) in 'hvwud' and self.str_at(2) == '\'':
-            self.macro += 1
-            self.skip_char(3)
-            while self.str_at(0) != '\'' and self.esc_char():
-                pass # Weird
-            if self.str_at(0) == '\'':
-                self.skip_char()
-            self.macro -= 1
-            return True
-        return False
+        if self.str_at(1) not in 'hvwud' or self.str_at(2) != '\'':
+            return False
+        self.macro += 1
+        self.skip_char(3)
+        while self.str_at(0) != '\'' and self.esc_char():
+            pass # Weird
+        if self.str_at(0) == '\'':
+            self.skip_char()
+        self.macro -= 1
+        return True
 
     def var(self):
         reg = ''
-        s0s1 = self.s[0:2]
+        s0s1 = self.s[:2]
         if s0s1 == '\\n':
             if self.s[3:5] == 'dy':
                 self.skip_char(5)
@@ -475,7 +474,7 @@ class Deroffer:
                 while self.str_at(0) and self.str_at(0) != ']':
                     reg = reg + self.str_at(0)
                     self.skip_char()
-                if self.s[0:1] == ']':
+                if self.s[:1] == ']':
                     self.skip_char()
                 else:
                     return False
@@ -502,7 +501,7 @@ class Deroffer:
 
     def spec(self):
         self.specletter = False
-        if self.s[0:2] == '\\(' and self.prch(2) and self.prch(3):
+        if self.s[:2] == '\\(' and self.prch(2) and self.prch(3):
             key = self.s[2:4]
             if key in Deroffer.g_specs_specletter:
                 self.condputs(Deroffer.g_specs_specletter[key])
@@ -528,9 +527,7 @@ class Deroffer:
             self.condputs('\t')
         elif c in '0~':
             self.condputs(' ')
-        elif c in '|^&:':
-            pass
-        else:
+        elif c not in '|^&:':
             self.condputs(c)
         self.skip_char(2)
         return True
@@ -576,13 +573,12 @@ class Deroffer:
         return ch.isdigit()
 
     def number(self):
-        match = Deroffer.g_re_number.match(self.s)
-        if not match:
-            return False
-        else:
+        if match := Deroffer.g_re_number.match(self.s):
             self.condputs(match.group(0))
             self.skip_char(match.end())
             return True
+        else:
+            return False
 
     def esc_char_backslash(self):
         # Like esc_char, but we know the string starts with a backslash
@@ -604,29 +600,26 @@ class Deroffer:
 
 
     def esc_char(self):
-        if self.s[0:1] == '\\':
+        if self.s[:1] == '\\':
             return self.esc_char_backslash()
         return self.word() or self.number()
 
     def quoted_arg(self):
-        if self.str_at(0) == '"':
-            self.skip_char()
-            while self.s and self.str_at(0) != '"':
-                if not self.esc_char():
-                    if self.s:
-                        self.condputs(self.str_at(0))
-                        self.skip_char()
-            return True
-        else:
+        if self.str_at(0) != '"':
             return False
+        self.skip_char()
+        while self.s and self.str_at(0) != '"':
+            if not self.esc_char() and self.s:
+                self.condputs(self.str_at(0))
+                self.skip_char()
+        return True
 
     def text_arg(self):
         # PCA: The deroff.c textArg() disallowed quotes at the start of an argument
         # I'm not sure if this was a bug or not
         got_something = False
         while True:
-            match = Deroffer.g_re_not_backslash_or_whitespace.match(self.s)
-            if match:
+            if match := Deroffer.g_re_not_backslash_or_whitespace.match(self.s):
                 # Output the characters in the match
                 self.condputs(match.group(0))
                 self.skip_char(match.end(0))
@@ -648,18 +641,16 @@ class Deroffer:
 
     def text_arg2(self):
         if not self.esc_char():
-            if self.s and not self.is_white(0):
-                self.condputs(self.str_at(0))
-                self.skip_char()
-            else:
+            if not self.s or self.is_white(0):
                 return False
+            self.condputs(self.str_at(0))
+            self.skip_char()
         while True:
             if not self.esc_char():
-                if self.s and not self.is_white(0):
-                    self.condputs(self.str_at(0))
-                    self.skip_char()
-                else:
+                if not self.s or self.is_white(0):
                     return True
+                self.condputs(self.str_at(0))
+                self.skip_char()
 
 
     # Macro functions
@@ -678,14 +669,13 @@ class Deroffer:
         return False
 
     def macro_i_ir(self):
-        pass
         return False
 
     def macro_Nm(self):
         if self.s == 'Nm\n':
             self.condputs(self.name)
         else:
-            self.name = self.s[3:].strip() + ' '
+            self.name = f'{self.s[3:].strip()} '
         return True
 
     def macro_close_bracket(self):
@@ -815,8 +805,6 @@ class Deroffer:
             if self.str_at(1) == '"':
                 self.condputs('\n')
                 return True
-            else:
-                pass
         elif s0 == '[':
             self.refer = True
             self.condputs('\n')
@@ -831,7 +819,7 @@ class Deroffer:
             return True
 
         self.nobody = False
-        s0s1 = self.s[0:2]
+        s0s1 = self.s[:2]
 
         macro_func = Deroffer.g_macro_dict.get(s0s1, Deroffer.macro_other)
         if macro_func(self):
@@ -853,13 +841,11 @@ class Deroffer:
 
     def request_or_macro2(self):
         self.skip_char()
-        s0 = self.s[0:1]
+        s0 = self.s[:1]
         if s0 == '\\':
             if self.str_at(1) == '"':
                 self.condputs('\n')
                 return True
-            else:
-                pass
         elif s0 == '[':
             self.refer = True
             self.condputs('\n')
@@ -874,7 +860,7 @@ class Deroffer:
             return True
 
         self.nobody = False
-        s0s1 = self.s[0:2]
+        s0s1 = self.s[:2]
         if s0s1 == 'SH':
             for header_str in [' SYNOPSIS', ' "SYNOPSIS', ' ‹BERSICHT', ' "‹BERSICHT']:
                 if self.s[2:].startswith(header_str):
@@ -995,11 +981,10 @@ class Deroffer:
         self.skip_leading_whitespace()
         while True:
             if not self.quoted_arg() and not self.text_arg():
-                if self.s:
-                    self.condputs(self.str_at(0))
-                    self.skip_char()
-                else:
+                if not self.s:
                     return True
+                self.condputs(self.str_at(0))
+                self.skip_char()
 
 
     def do_tbl(self):
@@ -1030,12 +1015,8 @@ class Deroffer:
                         if idx != -1:
                             arg = arg[:idx]
                         self.s = self.s[idx+1:]
-                    else:
-                        #self.skip_char()
-                        pass
-
                     if option.lower() == 'tab':
-                        self.tblTab = arg[0:1]
+                        self.tblTab = arg[:1]
 
             self.tblstate = self.FORMAT
             self.condputs('\n')
@@ -1054,7 +1035,7 @@ class Deroffer:
         return True
 
     def do_line(self):
-        if self.s[0:1] in ".'":
+        if self.s[:1] in ".'":
             if not self.request_or_macro(): return False
         elif self.tbl:
             self.do_tbl()
@@ -1090,11 +1071,5 @@ def deroff_files(files):
 if __name__ == "__main__":
     import gzip
     paths = sys.argv[1:]
-    if True:
-        deroff_files(paths)
-    else:
-        import cProfile, profile, pstats
-        profile.run('deroff_files(paths)', 'fooprof')
-        p = pstats.Stats('fooprof')
-        p.sort_stats('time').print_stats(100)
+    deroff_files(paths)
         #p.sort_stats('calls').print_callers(.5, 'startswith')

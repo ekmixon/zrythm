@@ -40,7 +40,7 @@ class AliasGenerator:
 
     # Keep consistent with m.htmlsanity
     def format_siteurl(self, url):
-        return urljoin(self.siteurl + ('/' if not self.siteurl.endswith('/') else ''), url)
+        return urljoin(self.siteurl + ('' if self.siteurl.endswith('/') else '/'), url)
 
     def generate_output(self, writer):
         for page in self.context['pages'] + self.context['articles']:
@@ -59,12 +59,17 @@ class AliasGenerator:
 
                 alias_file = os.path.join(directory, filename)
                 alias_target = self.format_siteurl(page.url)
-                logger.info('m.alias: creating alias {} -> {}'.format(alias_file[len(self.output_path):], alias_target))
+                logger.info(
+                    f'm.alias: creating alias {alias_file[len(self.output_path):]} -> {alias_target}'
+                )
+
 
                 # Write the redirect file
                 os.makedirs(directory, exist_ok=True)
                 with open(alias_file, 'w') as f:
-                    f.write("""<!DOCTYPE html><html><head><meta http-equiv="refresh" content="0;url={}" /></head></html>\n""".format(alias_target))
+                    f.write(
+                        f"""<!DOCTYPE html><html><head><meta http-equiv="refresh" content="0;url={alias_target}" /></head></html>\n"""
+                    )
 
 def get_generators(generators): return AliasGenerator
 

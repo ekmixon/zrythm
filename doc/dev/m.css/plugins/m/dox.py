@@ -41,8 +41,7 @@ link_regexp = re.compile(r'(?P<title>.*) <(?P<link>[^?#]+)(?P<hash>[?#].+)?>')
 
 def parse_link(text):
     link = utils.unescape(text)
-    m = link_regexp.match(link)
-    if m:
+    if m := link_regexp.match(link):
         title, link, hash = m.group('title', 'link', 'hash')
         if not hash: hash = '' # it's None otherwise
     else:
@@ -85,11 +84,19 @@ def init(pelicanobj):
                     symbol_mapping[(file_path.text if file_path is not None else '') + child.find('name').text] = (None, link, css_classes)
 
                     for member in child.findall('member'):
-                        if not 'kind' in member.attrib: continue
+                        if 'kind' not in member.attrib: continue
 
                         # Preprocessor defines and macros
                         if member.attrib['kind'] == 'define':
-                            symbol_mapping[member.find('name').text + ('()' if member.find('arglist').text else '')] = (None, link + '#' + member.find('anchor').text, css_classes)
+                            symbol_mapping[
+                                member.find('name').text
+                                + ('()' if member.find('arglist').text else '')
+                            ] = (
+                                None,
+                                f'{link}#' + member.find('anchor').text,
+                                css_classes,
+                            )
+
 
                 # Linking to namespaces, structs and classes
                 if child.attrib['kind'] in ['class', 'struct', 'namespace']:
@@ -97,28 +104,58 @@ def init(pelicanobj):
                     link = path + child.findtext('filename') # <filename> can be empty (cppreference tag file)
                     symbol_mapping[name] = (None, link, css_classes)
                     for member in child.findall('member'):
-                        if not 'kind' in member.attrib: continue
+                        if 'kind' not in member.attrib: continue
 
                         # Typedefs, constants
-                        if member.attrib['kind'] == 'typedef' or member.attrib['kind'] == 'enumvalue':
-                            symbol_mapping[name + '::' + member.find('name').text] = (None, link + '#' + member.find('anchor').text, css_classes)
+                        if member.attrib['kind'] in ['typedef', 'enumvalue']:
+                            symbol_mapping[
+                                f'{name}::' + member.find('name').text
+                            ] = (
+                                None,
+                                f'{link}#' + member.find('anchor').text,
+                                css_classes,
+                            )
+
 
                         # Functions
                         if member.attrib['kind'] == 'function':
                             # <filename> can be empty (cppreference tag file)
-                            symbol_mapping[name + '::' + member.find('name').text + "()"] = (None, link + '#' + member.findtext('anchor'), css_classes)
+                            symbol_mapping[
+                                f'{name}::' + member.find('name').text + "()"
+                            ] = (
+                                None,
+                                f'{link}#' + member.findtext('anchor'),
+                                css_classes,
+                            )
+
 
                         # Enums with values
                         if member.attrib['kind'] == 'enumeration':
-                            enumeration = name + '::' + member.find('name').text
-                            symbol_mapping[enumeration] = (None, link + '#' + member.find('anchor').text, css_classes)
+                            enumeration = f'{name}::' + member.find('name').text
+                            symbol_mapping[enumeration] = (
+                                None,
+                                f'{link}#' + member.find('anchor').text,
+                                css_classes,
+                            )
+
 
                             for value in member.findall('enumvalue'):
-                                symbol_mapping[enumeration + '::' + value.text] = (None, link + '#' + value.attrib['anchor'], css_classes)
+                                symbol_mapping[
+                                    f'{enumeration}::{value.text}'
+                                ] = (
+                                    None,
+                                    f'{link}#' + value.attrib['anchor'],
+                                    css_classes,
+                                )
+
 
                 # Sections
                 for section in child.findall('docanchor'):
-                    symbol_mapping[section.text] = (section.attrib.get('title', ''), link + '#' + section.text, css_classes)
+                    symbol_mapping[section.text] = (
+                        section.attrib.get('title', ''),
+                        f'{link}#{section.text}',
+                        css_classes,
+                    )
 
 def dox(name, rawtext, text, lineno, inliner: Inliner, options={}, content=[]):
     title, target, hash = parse_link(text)
@@ -134,7 +171,7 @@ def dox(name, rawtext, text, lineno, inliner: Inliner, options={}, content=[]):
         if basename == target:
             if not title:
                 # TODO: extract title from index page in the tagfile
-                logger.warning("Link to main page `{}` requires a title".format(target))
+                logger.warning(f"Link to main page `{target}` requires a title")
                 title = target
 
             _options['classes'] += css_classes
@@ -150,7 +187,10 @@ def dox(name, rawtext, text, lineno, inliner: Inliner, options={}, content=[]):
                 use_title = link_title
             else:
                 if link_title is not None:
-                    logger.warning("Doxygen anchor `{}` has no title, using its ID as link title".format(target))
+                    logger.warning(
+                        f"Doxygen anchor `{target}` has no title, using its ID as link title"
+                    )
+
 
                 use_title = target
 
@@ -158,15 +198,15 @@ def dox(name, rawtext, text, lineno, inliner: Inliner, options={}, content=[]):
             node = nodes.reference(rawtext, use_title, refuri=url + hash, **_options)
             return [node], []
 
-    # TODO: print file and line
-    #msg = inliner.reporter.warning(
-        #'Doxygen symbol %s not found' % target, line=lineno)
     #prb = inliner.problematic(rawtext, rawtext, msg)
     if title:
-        logger.warning("Doxygen symbol `{}` not found, rendering just link title".format(target))
+        logger.warning(
+            f"Doxygen symbol `{target}` not found, rendering just link title"
+        )
+
         node = nodes.inline(rawtext, title, **_options)
     else:
-        logger.warning("Doxygen symbol `{}` not found, rendering as monospace".format(target))
+        logger.warning(f"Doxygen symbol `{target}` not found, rendering as monospace")
         node = nodes.literal(rawtext, target, **_options)
     return [node], []
 

@@ -70,21 +70,20 @@ already_output_completions = {}
 
 def compile_and_search(regex, input):
     options_section_regex = re.compile(regex , re.DOTALL)
-    options_section_matched = re.search( options_section_regex, input)
-    return options_section_matched
+    return re.search( options_section_regex, input)
 
 def unquote_double_quotes(data):
     if (len(data) < 2):
         return data
     if data[0] == '"' and data[len(data)-1] == '"':
-        data = data[1:len(data)-1]
+        data = data[1:-1]
     return data
 
 def unquote_single_quotes(data):
     if (len(data) < 2):
         return data
     if data[0] == '`' and data[len(data)-1] == '\'':
-        data = data[1:len(data)-1]
+        data = data[1:-1]
     return data
 
 
@@ -140,13 +139,13 @@ def built_command(options, description):
 
         if option.startswith('--'):
             # New style long option (--recursive)
-            fish_options.append('-l ' + fish_escape_single_quote(option[2:]))
+            fish_options.append(f'-l {fish_escape_single_quote(option[2:])}')
         elif option.startswith('-') and len(option) == 2:
             # New style short option (-r)
-            fish_options.append('-s ' + fish_escape_single_quote(option[1:]))
+            fish_options.append(f'-s {fish_escape_single_quote(option[1:])}')
         elif option.startswith('-') and len(option) > 2:
             # Old style long option (-recursive)
-            fish_options.append('-o ' + fish_escape_single_quote(option[1:]))
+            fish_options.append(f'-o {fish_escape_single_quote(option[1:])}')
 
     # Determine which options are new (not already in existing_options)
     # Then add those to the existing options
@@ -159,12 +158,7 @@ def built_command(options, description):
 
     # Here's what we'll use to truncate if necessary
     max_description_width = 78
-    if IS_PY3:
-        truncation_suffix = '…'
-    else:
-        ELLIPSIS_CODE_POINT = 0x2026
-        truncation_suffix = unichr(ELLIPSIS_CODE_POINT)
-
+    truncation_suffix = '…' if IS_PY3 else unichr(0x2026)
     # Try to include as many whole sentences as will fit
     # Clean up some probably bogus escapes in the process
     clean_desc = description.replace("\\'", "'").replace("\\.", ".")
@@ -236,23 +230,20 @@ class Type1ManParser(ManParser):
         #   print manpage
         options_section_matched = compile_and_search("\.SH \"OPTIONS\"(.*?)", manpage)
 
-        if options_section_matched == None:
-            return False
-        else:
-            return True
+        return options_section_matched is not None
 
     def parse_man_page(self, manpage):
         options_section_regex = re.compile( "\.SH \"OPTIONS\"(.*?)(\.SH|\Z)", re.DOTALL)
         options_section_matched = re.search( options_section_regex, manpage)
 
-        options_section = options_section_matched.group(0)
+        options_section = options_section_matched[0]
         #   print options_section
         options_parts_regex = re.compile("\.PP(.*?)\.RE", re.DOTALL)
         options_matched = re.search(options_parts_regex, options_section)
         #   print options_matched
         add_diagnostic("Command is %r" % CMDNAME)
 
-        if options_matched == None:
+        if options_matched is None:
             add_diagnostic('Unable to find options')
             if( self.fallback(options_section) ):
                 return True
@@ -261,7 +252,7 @@ class Type1ManParser(ManParser):
             return False
 
         while (options_matched != None):
-            data = options_matched.group(1)
+            data = options_matched[1]
             last_dotpp_index = data.rfind(".PP")
             if (last_dotpp_index != -1):
                 data = data[last_dotpp_index+3:]
@@ -290,11 +281,11 @@ class Type1ManParser(ManParser):
         add_diagnostic('Trying fallback')
         options_parts_regex = re.compile("\.TP( \d+)?(.*?)\.TP", re.DOTALL)
         options_matched = re.search(options_parts_regex, options_section)
-        if options_matched == None:
+        if options_matched is None:
             add_diagnostic('Still not found')
             return False
         while options_matched != None:
-            data = options_matched.group(2)
+            data = options_matched[2]
             data = remove_groff_formatting(data)
             data = data.strip()
             data = data.split("\n",1)
@@ -323,11 +314,11 @@ class Type1ManParser(ManParser):
 
         options_section = re.sub(ix_remover_regex, "", options_section)
         options_matched = re.search(options_parts_regex, options_section)
-        if options_matched == None:
+        if options_matched is None:
             add_diagnostic('Still (still!) not found')
             return False
         while options_matched != None:
-            data = options_matched.group(1)
+            data = options_matched[1]
 
             data = remove_groff_formatting(data)
             data = data.strip()
@@ -355,27 +346,24 @@ class Type2ManParser(ManParser):
     def is_my_type(self, manpage):
         options_section_matched = compile_and_search("\.SH OPTIONS(.*?)", manpage)
 
-        if options_section_matched == None:
-            return False
-        else:
-            return True
+        return options_section_matched is not None
 
     def parse_man_page(self, manpage):
         options_section_regex = re.compile( "\.SH OPTIONS(.*?)(\.SH|\Z)", re.DOTALL)
         options_section_matched = re.search( options_section_regex, manpage)
 
-        options_section = options_section_matched.group(1)
+        options_section = options_section_matched[1]
 
         options_parts_regex = re.compile("\.[I|T]P( \d+(\.\d)?i?)?(.*?)\.([I|T]P|UNINDENT)", re.DOTALL)
         options_matched = re.search(options_parts_regex, options_section)
         add_diagnostic('Command is %r' % CMDNAME)
 
-        if options_matched == None:
+        if options_matched is None:
             add_diagnostic("%r: Unable to find options" % self)
             return False
 
         while (options_matched != None):
-            data = options_matched.group(3)
+            data = options_matched[3]
 
             data = remove_groff_formatting(data)
 
@@ -402,26 +390,23 @@ class Type3ManParser(ManParser):
     def is_my_type(self, manpage):
         options_section_matched = compile_and_search("\.SH DESCRIPTION(.*?)", manpage)
 
-        if options_section_matched == None:
-            return False
-        else:
-            return True
+        return options_section_matched is not None
 
     def parse_man_page(self, manpage):
         options_section_regex = re.compile( "\.SH DESCRIPTION(.*?)(\.SH|\Z)", re.DOTALL)
         options_section_matched = re.search( options_section_regex, manpage)
 
-        options_section = options_section_matched.group(1)
+        options_section = options_section_matched[1]
         options_parts_regex = re.compile("\.TP(.*?)\.TP", re.DOTALL)
         options_matched = re.search(options_parts_regex, options_section)
         add_diagnostic("Command is %r" % CMDNAME)
 
-        if options_matched == None:
+        if options_matched is None:
             add_diagnostic('Unable to find options section')
             return False
 
         while (options_matched != None):
-            data = options_matched.group(1)
+            data = options_matched[1]
 
             data = remove_groff_formatting(data)
             data = data.strip()
@@ -449,10 +434,7 @@ class Type4ManParser(ManParser):
     def is_my_type(self, manpage):
         options_section_matched = compile_and_search("\.SH FUNCTION LETTERS(.*?)", manpage)
 
-        if options_section_matched == None:
-            return False
-        else:
-            return True
+        return options_section_matched is not None
 
     def parse_man_page(self, manpage):
         options_section_regex = re.compile( "\.SH FUNCTION LETTERS(.*?)(\.SH|\Z)", re.DOTALL)
@@ -538,7 +520,11 @@ class TypeDarwinManParser(ManParser):
         got_something = False
         lines =  manpage.splitlines()
         # Discard lines until we get to ".sh Description"
-        while lines and not (lines[0].startswith('.Sh DESCRIPTION') or lines[0].startswith('.SH DESCRIPTION')):
+        while (
+            lines
+            and not lines[0].startswith('.Sh DESCRIPTION')
+            and not lines[0].startswith('.SH DESCRIPTION')
+        ):
             lines.pop(0)
 
         while lines:
@@ -585,7 +571,7 @@ class TypeDarwinManParser(ManParser):
                 built_command(('-' * dash_count) + name, desc)
                 got_something = True
             elif len(name) == 1:
-                built_command('-' + name, desc)
+                built_command(f'-{name}', desc)
                 got_something = True
 
         return got_something
@@ -691,12 +677,9 @@ def parse_manpage_at_path(manpage_path, output_directory):
     # Clear diagnostics
     global diagnostic_indent
     diagnostic_output[:] = []
-    diagnostic_indent = 0
-
     # Set up some diagnostics
-    add_diagnostic('Considering ' + manpage_path)
-    diagnostic_indent += 1
-
+    add_diagnostic(f'Considering {manpage_path}')
+    diagnostic_indent = 0 + 1
     if manpage_path.endswith('.gz'):
         fd = gzip.open(manpage_path, 'r')
         manpage = fd.read()
@@ -750,10 +733,10 @@ def parse_manpage_at_path(manpage_path, output_directory):
 
     success = False
     if not parsersToTry:
-        add_diagnostic(manpage_path + ": Not supported")
+        add_diagnostic(f"{manpage_path}: Not supported")
     else:
         for parser in parsersToTry:
-            add_diagnostic('Trying %s' % parser.__class__.__name__)
+            add_diagnostic(f'Trying {parser.__class__.__name__}')
             diagnostic_indent += 1
             success = parser.parse_man_page(manpage)
             diagnostic_indent -= 1
@@ -768,30 +751,34 @@ def parse_manpage_at_path(manpage_path, output_directory):
             if WRITE_TO_STDOUT:
                 output_file = sys.stdout
             else:
-                fullpath = os.path.join(output_directory, CMDNAME + '.fish')
+                fullpath = os.path.join(output_directory, f'{CMDNAME}.fish')
                 try:
                     output_file = codecs.open(fullpath, "w", encoding="utf-8")
                 except IOError as err:
                     add_diagnostic("Unable to open file '%s': error(%d): %s" % (fullpath, err.errno, err.strerror))
                     return False
 
-            built_command_output.insert(0, "# " + CMDNAME)
+            built_command_output.insert(0, f"# {CMDNAME}")
 
             # Output the magic word Autogenerated so we can tell if we can overwrite this
-            built_command_output.insert(1, "# Autogenerated from man page " + manpage_path)
+            built_command_output.insert(1, f"# Autogenerated from man page {manpage_path}")
             # built_command_output.insert(2, "# using " + parser.__class__.__name__) # XXX MISATTRIBUTES THE CULPABILE PARSER! Was really using Type2 but reporting TypeDeroffManParser
 
             for line in built_command_output:
                 output_file.write(line)
                 output_file.write('\n')
             output_file.write('\n')
-            add_diagnostic(manpage_path + ' parsed successfully')
+            add_diagnostic(f'{manpage_path} parsed successfully')
             if output_file != sys.stdout:
                 output_file.close()
         else:
             parser_names =  ', '.join(p.__class__.__name__ for p in parsersToTry)
             #add_diagnostic('%s contains no options or is unparsable' % manpage_path, BRIEF_VERBOSE)
-            add_diagnostic('%s contains no options or is unparsable (tried parser %s)' % (manpage_path, parser_names), BRIEF_VERBOSE)
+            add_diagnostic(
+                f'{manpage_path} contains no options or is unparsable (tried parser {parser_names})',
+                BRIEF_VERBOSE,
+            )
+
 
     return success
 
@@ -805,7 +792,7 @@ def parse_and_output_man_pages(paths, output_directory, show_progress):
     if show_progress and not WRITE_TO_STDOUT:
         print("Parsing man pages and writing completions to {0}".format(output_directory))
 
-    man_page_suffixes = set([os.path.splitext(m)[1][1:] for m in paths])
+    man_page_suffixes = {os.path.splitext(m)[1][1:] for m in paths}
     lzma_xz_occurs = "xz" in man_page_suffixes or "lzma" in man_page_suffixes
     if lzma_xz_occurs and not lzma_available:
         add_diagnostic('At least one man page is compressed with lzma or xz, but the "lzma" module is not available.'
@@ -819,7 +806,7 @@ def parse_and_output_man_pages(paths, output_directory, show_progress):
         # Get the "base" command, e.g. gcc.1.gz -> gcc
         man_file_name = os.path.basename(manpage_path)
         CMDNAME = man_file_name.split('.', 1)[0]
-        output_file_name = CMDNAME + '.fish'
+        output_file_name = f'{CMDNAME}.fish'
 
         # Show progress if we're doing that
         if show_progress:
@@ -845,11 +832,15 @@ def parse_and_output_man_pages(paths, output_directory, show_progress):
                 successful_count += 1
         except IOError:
             diagnostic_indent = 0
-            add_diagnostic('Cannot open ' + manpage_path)
+            add_diagnostic(f'Cannot open {manpage_path}')
         except (KeyboardInterrupt, SystemExit):
             raise
         except:
-            add_diagnostic('Error parsing %s: %s' % (manpage_path, sys.exc_info()[0]), BRIEF_VERBOSE)
+            add_diagnostic(
+                f'Error parsing {manpage_path}: {sys.exc_info()[0]}',
+                BRIEF_VERBOSE,
+            )
+
             flush_diagnostics(sys.stderr)
             traceback.print_exc(file=sys.stderr)
         flush_diagnostics(sys.stderr)

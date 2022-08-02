@@ -34,8 +34,8 @@ link_regexp = re.compile(r'(?P<title>.*) <(?P<link>.+)>')
 
 def parse_link(text):
     link = utils.unescape(text)
-    m = link_regexp.match(link)
-    if m: return m.group('title', 'link')
+    if m := link_regexp.match(link):
+        return m.group('title', 'link')
     return None, link
 
 def gh_internal(account, ref, title, link):
@@ -47,7 +47,8 @@ def gh_internal(account, ref, title, link):
     elif '@' in ref:
         project, _, commit = ref.partition('@')
         url = base_url.format(account, project, "commit", commit)
-        if not title: title = account + "/" + project + "@" + commit[0:7]
+        if not title:
+            title = f"{account}/{project}@" + commit[:7]
     elif '$' in ref:
         project, _, branch = ref.partition('$')
         url = base_url.format(account, project, "tree", branch)
@@ -57,10 +58,10 @@ def gh_internal(account, ref, title, link):
         url = base_url.format(account, project, "releases/tag", branch)
         if not title: title = url
     else:
-        url = "https://github.com/{}/{}".format(account, ref)
+        url = f"https://github.com/{account}/{ref}"
         if not title:
             # if simple profile link, no need to expand to full URL
-            title = link if not '/' in ref else url
+            title = link if '/' not in ref else url
 
     return title, url
 
@@ -68,8 +69,9 @@ def gh(name, rawtext, text, lineno, inliner, options={}, content=[]):
     title, link = parse_link(text)
     account, _, ref = link.partition('/')
     if not ref:
-        url = "https://github.com/{}".format(account)
-        if not title: title = "@{}".format(account)
+        url = f"https://github.com/{account}"
+        if not title:
+            title = f"@{account}"
     else:
         title, url = gh_internal(account, ref, title, link)
 

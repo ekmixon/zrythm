@@ -120,7 +120,7 @@ def fetch_cached_or_render(formula):
         return out['depth'], out['svg']
 
     hash = sha1(formula.encode('utf-8')).digest()
-    if not hash in _cache[2]:
+    if hash not in _cache[2]:
         out = latex2svg.latex2svg(formula, params=params)
         _cache[2][hash] = (_cache[1], out['depth'], out['svg'])
     else:

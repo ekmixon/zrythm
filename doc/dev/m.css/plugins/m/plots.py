@@ -193,7 +193,7 @@ class Plot(rst.Directive):
         plot = ax.barh(yticks, values, xerr=errors,
                        align='center', color=colors, ecolor='#cafe0a', capsize=5*bar_height/0.4)
         for i, v in enumerate(plot):
-            v.set_gid('plot{}-value{}'.format(mpl.rcParams['svg.hashsalt'], i))
+            v.set_gid(f"plot{mpl.rcParams['svg.hashsalt']}-value{i}")
         ax.set_yticks(yticks)
         ax.invert_yaxis() # top-to-bottom
         ax.set_xlabel(units)

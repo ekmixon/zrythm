@@ -129,18 +129,14 @@ def latex2svg(code, params=default_params, working_directory=None):
         regex = r'\b([0-9.]+)pt x ([0-9.]+)pt'
         match = re.search(regex, output)
         if match:
-            return (float(match.group(1)) / fontsize,
-                    float(match.group(2)) / fontsize)
+            return float(match[1]) / fontsize, float(match[2]) / fontsize
         else:
             return None, None
 
     def get_measure(output, name):
         regex = r'\b%s=([0-9.e-]+)pt' % name
         match = re.search(regex, output)
-        if match:
-            return float(match.group(1)) / fontsize
-        else:
-            return None
+        return float(match[1]) / fontsize if match else None
 
     output = ret.stderr.decode('utf-8')
     width, height = get_size(output)

@@ -32,7 +32,12 @@ class PluginTestCase(unittest.TestCase):
     def __init__(self, path, dir, *args, **kwargs):
         unittest.TestCase.__init__(self, *args, **kwargs)
         # Source files for test_something.py are in something_{dir}/ subdirectory
-        self.path = os.path.join(os.path.dirname(os.path.realpath(path)), os.path.splitext(os.path.basename(path))[0][5:] + ('_' + dir if dir else ''))
+        self.path = os.path.join(
+            os.path.dirname(os.path.realpath(path)),
+            os.path.splitext(os.path.basename(path))[0][5:]
+            + (f'_{dir}' if dir else ''),
+        )
+
 
         # Display ALL THE DIFFS
         self.maxDiff = None
@@ -68,7 +73,7 @@ class PluginTestCase(unittest.TestCase):
             'DIRECT_TEMPLATES': [],
             'SLUGIFY_SOURCE': 'basename'
         }
-        implicit_settings.update(settings)
+        implicit_settings |= settings
         settings = read_settings(path=None, override=implicit_settings)
         pelican = Pelican(settings=settings)
         pelican.run()

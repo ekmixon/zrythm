@@ -43,11 +43,7 @@ def _is_math_figure(parent):
     if not isinstance(parent, nodes.figure): return False
     if 'm-figure' not in parent.get('classes', []): return False
 
-    # And as a first visible node of such type
-    for child in parent:
-        if not isinstance(child, nodes.Invisible): return False
-
-    return True
+    return all(isinstance(child, nodes.Invisible) for child in parent)
 
 class Math(rst.Directive):
     option_spec = {'class': directives.class_option,
@@ -121,9 +117,9 @@ def math(role, rawtext, text, lineno, inliner, options={}, content=[]):
         classes += ' ' + ' '.join(options['classes'])
         del options['classes']
 
-    depth, svg = latex2svgextra.fetch_cached_or_render("$" + text + "$")
+    depth, svg = latex2svgextra.fetch_cached_or_render(f"${text}$")
 
-    attribs = ' class="{}"'.format(classes)
+    attribs = f' class="{classes}"'
     node = nodes.raw(rawtext, latex2svgextra.patch(text, svg, depth, attribs), format='html', **options)
     return [node], []
 
@@ -137,8 +133,10 @@ def configure_pelican(pelicanobj):
         latex2svgextra.unpickle_cache(None)
 
 def save_cache(pelicanobj):
-    cache_file = pelicanobj.settings.get('M_MATH_CACHE_FILE', 'm.math.cache')
-    if cache_file: latex2svgextra.pickle_cache(cache_file)
+    if cache_file := pelicanobj.settings.get(
+        'M_MATH_CACHE_FILE', 'm.math.cache'
+    ):
+        latex2svgextra.pickle_cache(cache_file)
 
 def register():
     pelican.signals.initialized.connect(configure_pelican)

@@ -190,7 +190,7 @@ class _Figure(rst.Directive):
             title_node = nodes.caption('', '', *title_nodes)
 
             for i, child in enumerate(figure_node):
-                if isinstance(child, nodes.raw) or isinstance(child, nodes.literal_block):
+                if isinstance(child, (nodes.raw, nodes.literal_block)):
                     figure_node.insert(i + 1, title_node)
                     break
             else: assert False # pragma: no cover

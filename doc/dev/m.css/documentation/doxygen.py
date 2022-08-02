@@ -249,7 +249,7 @@ class ResultMap:
         # Write the entries themselves
         for e in self.entries:
             if e.flags & ResultFlag._TYPE == ResultFlag.ALIAS:
-                assert not e.alias is None
+                assert e.alias is not None
                 assert not e.url
                 output += self.alias_struct.pack(e.alias)
             if e.flags & ResultFlag.HAS_PREFIX:
@@ -284,7 +284,7 @@ class Trie:
             return
 
         char = path[0]
-        if not char in self.children:
+        if char not in self.children:
             self.children[char] = (False, Trie())
         if lookahead_barriers and lookahead_barriers[0] == 0:
             lookahead_barriers = lookahead_barriers[1:]
@@ -353,11 +353,10 @@ class Trie:
         hashable = bytes(serialized)
         if merge_subtrees and hashable in hashtable:
             return hashtable[hashable]
-        else:
-            offset = len(output)
-            output += serialized
-            if merge_subtrees: hashtable[hashable] = offset
-            return offset
+        offset = len(output)
+        output += serialized
+        if merge_subtrees: hashtable[hashable] = offset
+        return offset
 
     def serialize(self, merge_subtrees=True) -> bytearray:
         output = bytearray(b'\x00\x00\x00\x00')
@@ -427,9 +426,7 @@ def add_wbr(text: str) -> str:
     elif '_' in text: # VERY_LONG_UPPER_CASE macro names
         return text.replace('_', '_<wbr />')
 
-    # These characters are quite common, so at least check that there is no
-    # space (which may hint that the text is actually some human language):
-    elif '/' in text and not ' ' in text: # URLs
+    elif '/' in text and ' ' not in text: # URLs
         return text.replace('/', '/<wbr />')
     else:
         return text
@@ -438,12 +435,15 @@ def parse_ref(state: State, element: ET.Element) -> str:
     id = element.attrib['refid']
 
     if element.attrib['kindref'] == 'compound':
-        url = id + '.html'
+        url = f'{id}.html'
     elif element.attrib['kindref'] == 'member':
         i = id.rindex('_1')
-        url = id[:i] + '.html' + '#' + id[i+2:]
+        url = f'{id[:i]}.html#{id[i+2:]}'
     else: # pragma: no cover
-        logging.critical("{}: unknown <ref> kind {}".format(state.current, element.attrib['kindref']))
+        logging.critical(
+            f"{state.current}: unknown <ref> kind {element.attrib['kindref']}"
+        )
+
         assert False
 
     if 'external' in element.attrib:
@@ -453,17 +453,20 @@ def parse_ref(state: State, element: ET.Element) -> str:
                 url = os.path.join(baseurl, url)
                 break
         else: # pragma: no cover
-            logging.critical("{}: tagfile {} not specified in Doxyfile".format(state.current, element.attrib['external']))
+            logging.critical(
+                f"{state.current}: tagfile {element.attrib['external']} not specified in Doxyfile"
+            )
+
             assert False
         class_ = 'm-doc-external'
     else:
         class_ = 'm-doc'
 
-    return '<a href="{}" class="{}">{}</a>'.format(url, class_, add_wbr(parse_inline_desc(state, element).strip()))
+    return f'<a href="{url}" class="{class_}">{add_wbr(parse_inline_desc(state, element).strip())}</a>'
 
 def make_include(state: State, file) -> Tuple[str, str]:
     if file in state.includes and state.compounds[state.includes[file]].has_details:
-        return (html.escape('<{}>'.format(file)), state.compounds[state.includes[file]].url)
+        return html.escape(f'<{file}>'), state.compounds[state.includes[file]].url
     return None
 
 def parse_id_and_include(state: State, element: ET.Element) -> Tuple[str, str, str, Tuple[str, str], bool]:
@@ -510,7 +513,7 @@ def parse_id_and_include(state: State, element: ET.Element) -> Tuple[str, str, s
             include = make_include(state, file)
             has_details = True
 
-    return id[:i], id[:i] + '.html', id[i+2:], include, has_details
+    return id[:i], f'{id[:i]}.html', id[i+2:], include, has_details
 
 def extract_id_hash(state: State, element: ET.Element) -> str:
     # Can't use parse_id() here as sections with _1 in it have it verbatim
@@ -555,15 +558,18 @@ def parse_type(state: State, type: ET.Element) -> str:
             # https://github.com/doxygen/doxygen/pull/6587
             # TODO: this should get reverted and fixed properly so the
             # one-on-one case works as it should
-            out += '<a name="{}"></a>'.format(extract_id_hash(state, i))
+            out += f'<a name="{extract_id_hash(state, i)}"></a>'
         else: # pragma: no cover
-            logging.warning("{}: ignoring {} in <type>".format(state.current, i.tag))
+            logging.warning(f"{state.current}: ignoring {i.tag} in <type>")
 
         if i.tail: out += html.escape(i.tail)
 
     # Warn if suspicious stuff is present
     if '_EXPORT' in out or '_LOCAL' in out:
-        logging.warning("{}: type contains an export macro: {}".format(state.current, ''.join(type.itertext())))
+        logging.warning(
+            f"{state.current}: type contains an export macro: {''.join(type.itertext())}"
+        )
+
 
     # Remove spacing inside <> and before & and *
     return fix_type_spacing(out)

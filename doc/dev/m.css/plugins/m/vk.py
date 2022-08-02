@@ -34,30 +34,35 @@ link_regexp = re.compile(r'(?P<title>.*) <(?P<link>.+)>')
 
 def parse_link(text):
     link = utils.unescape(text)
-    m = link_regexp.match(link)
-    if m: return m.group('title', 'link')
+    if m := link_regexp.match(link):
+        return m.group('title', 'link')
     return None, link
 
 def vkext(name, rawtext, text, lineno, inliner, options={}, content=[]):
     title, extension = parse_link(text)
     if not title: title = extension
-    url = "https://www.khronos.org/registry/vulkan/specs/1.1-extensions/html/vkspec.html#VK_{}".format(extension)
+    url = f"https://www.khronos.org/registry/vulkan/specs/1.1-extensions/html/vkspec.html#VK_{extension}"
+
     set_classes(options)
     node = nodes.reference(rawtext, title, refuri=url, **options)
     return [node], []
 
 def vkfn(name, rawtext, text, lineno, inliner, options={}, content=[]):
     title, fn = parse_link(text)
-    if not title: title = "vk{}()".format(fn)
-    url = "https://www.khronos.org/registry/vulkan/specs/1.1-extensions/man/html/vk{}.html".format(fn)
+    if not title:
+        title = f"vk{fn}()"
+    url = f"https://www.khronos.org/registry/vulkan/specs/1.1-extensions/man/html/vk{fn}.html"
+
     set_classes(options)
     node = nodes.reference(rawtext, title, refuri=url, **options)
     return [node], []
 
 def vktype(name, rawtext, text, lineno, inliner, options={}, content=[]):
     title, fn = parse_link(text)
-    if not title: title = "Vk{}".format(fn)
-    url = "https://www.khronos.org/registry/vulkan/specs/1.1-extensions/man/html/Vk{}.html".format(fn)
+    if not title:
+        title = f"Vk{fn}"
+    url = f"https://www.khronos.org/registry/vulkan/specs/1.1-extensions/man/html/Vk{fn}.html"
+
     set_classes(options)
     node = nodes.reference(rawtext, title, refuri=url, **options)
     return [node], []

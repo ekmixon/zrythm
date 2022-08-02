@@ -125,17 +125,7 @@ def is_internal_or_imported_module_member(state: State, parent, path: str, name:
     # TODO: xml.dom.domreg says the things from it should be imported as
     #   xml.dom.foo() and this check discards them, can it be done without
     #   manually adding __all__?
-    if not inspect.ismodule(object):
-        # Variables don't have the __module__ attribute, so check for its
-        # presence. Right now *any* variable will be present in the output, as
-        # there is no way to check where it comes from.
-        if hasattr(object, '__module__') and object.__module__ != '.'.join(path):
-            return True
-
-    # If this is a module, then things get complicated again and we need to
-    # handle modules and packages differently. See also for more info:
-    # https://stackoverflow.com/a/7948672
-    else:
+    if inspect.ismodule(object):
         # pybind11 submodules have __package__ set to None for nested modules,
         # the top-level __package__ is '' though. Allow these if parent
         # __package__ is empty (either '' or None).
@@ -149,7 +139,13 @@ def is_internal_or_imported_module_member(state: State, parent, path: str, name:
         # The parent is a package and this is either a submodule or a
         # subpackage. Check that the __package__ of parent and child is either
         # the same or it's parent + child name
-        if object.__package__ not in [parent.__package__, parent.__package__ + '.' + name]: return True
+        if object.__package__ not in [
+            parent.__package__,
+            f'{parent.__package__}.{name}',
+        ]: return True
+
+    elif hasattr(object, '__module__') and object.__module__ != '.'.join(path):
+        return True
 
     # If nothing of the above matched, then it's a thing we want to document
     return False
@@ -263,32 +259,29 @@ def parse_pybind_signature(signature: str) -> Tuple[str, str, List[Tuple[str, st
 
 def parse_pybind_docstring(name: str, doc: str) -> List[Tuple[str, str, List[Tuple[str, str, str]], str]]:
     # Multiple overloads, parse each separately
-    overload_header = "{}(*args, **kwargs)\nOverloaded function.\n\n".format(name);
-    if doc.startswith(overload_header):
-        doc = doc[len(overload_header):]
-        overloads = []
-        id = 1
-        while True:
-            assert doc.startswith('{}. {}('.format(id, name))
-            id = id + 1
-            next = doc.find('{}. {}('.format(id, name))
-
-            # Parse the signature and docs from known slice
-            overloads += [parse_pybind_signature(doc[3:next])]
-            assert overloads[-1][0] == name
-            if next == -1: break
-
-            # Continue to the next signature. Sorry, didn't bother to check how
-            # docstrings for more than 9 overloads look yet, that's why the
-            # assert
-            assert id < 10
-            doc = doc[next:]
-
-        return overloads
-
-    # Normal function, parse and return the first signature
-    else:
+    overload_header = f"{name}(*args, **kwargs)\nOverloaded function.\n\n";
+    if not doc.startswith(overload_header):
         return [parse_pybind_signature(doc)]
+    doc = doc[len(overload_header):]
+    overloads = []
+    id = 1
+    while True:
+        assert doc.startswith(f'{id}. {name}(')
+        id = id + 1
+        next = doc.find(f'{id}. {name}(')
+
+        # Parse the signature and docs from known slice
+        overloads += [parse_pybind_signature(doc[3:next])]
+        assert overloads[-1][0] == name
+        if next == -1: break
+
+        # Continue to the next signature. Sorry, didn't bother to check how
+        # docstrings for more than 9 overloads look yet, that's why the
+        # assert
+        assert id < 10
+        doc = doc[next:]
+
+    return overloads
 
 def extract_brief(doc: str) -> str:
     if not doc: return '' # some modules (xml.etree) have that :(
@@ -299,7 +292,9 @@ def extract_brief(doc: str) -> str:
 def extract_type(type) -> str:
     # For types we concatenate the type name with its module unless it's
     # builtins (i.e., we want re.Match but not builtins.int).
-    return (type.__module__ + '.' if type.__module__ != 'builtins' else '') + type.__name__
+    return (
+        f'{type.__module__}.' if type.__module__ != 'builtins' else ''
+    ) + type.__name__
 
 def extract_annotation(annotation) -> str:
     # TODO: why this is not None directly?
@@ -366,17 +361,12 @@ def extract_enum_doc(state: State, path: List[str], enum_):
             value.value = html.escape(repr(i.value))
 
             # Value doc gets by default inherited from the enum, that's useless
-            if i.__doc__ == enum_.__doc__:
-                value.brief = ''
-            else:
-                value.brief = extract_brief(i.__doc__)
-
+            value.brief = '' if i.__doc__ == enum_.__doc__ else extract_brief(i.__doc__)
             if value.brief:
                 out.has_details = True
                 out.has_value_details = True
             out.values += [value]
 
-    # Pybind11 enums are ... different
     elif state.config['PYBIND11_COMPATIBILITY']:
         assert hasattr(enum_, '__members__')
 
@@ -421,11 +411,11 @@ def extract_function_doc(state: State, parent, path: List[str], function) -> Lis
             # self being the name of first parameter :( No support for
             # classmethods, as C++11 doesn't have that
             out.is_classmethod = False
-            if inspect.isclass(parent) and args and args[0][0] == 'self':
-                out.is_staticmethod = False
-            else:
-                out.is_staticmethod = True
+            out.is_staticmethod = (
+                not inspect.isclass(parent) or not args or args[0][0] != 'self'
+            )
 
+            positional_only = True
             # Guesstimate whether the arguments are positional-only or
             # position-or-keyword. It's either all or none. This is a brown
             # magic, sorry.
@@ -438,30 +428,25 @@ def extract_function_doc(state: State, parent, path: List[str], function) -> Lis
             if inspect.isclass(parent) and not out.is_staticmethod:
                 assert args and args[0][0] == 'self'
 
-                positional_only = True
                 for i, arg in enumerate(args[1:]):
                     name, type, default = arg
-                    if name != 'arg{}'.format(i):
+                    if name != f'arg{i}':
                         positional_only = False
                         break
 
-            # For static methods or free functions positional-only arguments
-            # are argI.
             else:
-                positional_only = True
                 for i, arg in enumerate(args):
                     name, type, default = arg
-                    if name != 'arg{}'.format(i):
+                    if name != f'arg{i}':
                         positional_only = False
                         break
 
-            for i, arg in enumerate(args):
+            for arg in args:
                 name, type, default = arg
                 param = Empty()
                 param.name = name
                 # Don't include redundant type for the self argument
-                if name == 'self': param.type = None
-                else: param.type = type
+                param.type = None if name == 'self' else type
                 param.default = default
                 if type or default: out.has_complex_params = True
 
@@ -477,7 +462,6 @@ def extract_function_doc(state: State, parent, path: List[str], function) -> Lis
 
         return overloads
 
-    # Sane introspection path for non-pybind11 code
     else:
         out = Empty()
         out.name = path[-1]
@@ -569,8 +553,8 @@ def render_module(state: State, path, module, env):
     url_base = ''
     breadcrumb = []
     for i in path:
-        url_base += i + '.'
-        breadcrumb += [(i, url_base + 'html')]
+        url_base += f'{i}.'
+        breadcrumb += [(i, f'{url_base}html')]
 
     page = Empty()
     page.brief = extract_brief(module.__doc__)
@@ -679,33 +663,43 @@ def render_module(state: State, path, module, env):
 
 # Builtin dunder functions have hardcoded docstrings. This is totally useless
 # to have in the docs, so filter them out. Uh... kinda ugly.
-_filtered_builtin_functions = set([
+_filtered_builtin_functions = {
     ('__delattr__', "Implement delattr(self, name)."),
     ('__eq__', "Return self==value."),
     ('__ge__', "Return self>=value."),
     ('__getattribute__', "Return getattr(self, name)."),
     ('__gt__', "Return self>value."),
     ('__hash__', "Return hash(self)."),
-    ('__init__', "Initialize self.  See help(type(self)) for accurate signature."),
-    ('__init_subclass__',
+    (
+        '__init__',
+        "Initialize self.  See help(type(self)) for accurate signature.",
+    ),
+    (
+        '__init_subclass__',
         "This method is called when a class is subclassed.\n\n"
         "The default implementation does nothing. It may be\n"
-        "overridden to extend subclasses.\n"),
+        "overridden to extend subclasses.\n",
+    ),
     ('__le__', "Return self<=value."),
     ('__lt__', "Return self<value."),
     ('__ne__', "Return self!=value."),
-    ('__new__',
-        "Create and return a new object.  See help(type) for accurate signature."),
+    (
+        '__new__',
+        "Create and return a new object.  See help(type) for accurate signature.",
+    ),
     ('__repr__', "Return repr(self)."),
     ('__setattr__', "Implement setattr(self, name, value)."),
     ('__str__', "Return str(self)."),
-    ('__subclasshook__',
+    (
+        '__subclasshook__',
         "Abstract classes can override this to customize issubclass().\n\n"
         "This is invoked early on by abc.ABCMeta.__subclasscheck__().\n"
         "It should return True, False or NotImplemented.  If it returns\n"
         "NotImplemented, the normal algorithm is used.  Otherwise, it\n"
-        "overrides the normal algorithm (and the outcome is cached).\n")
-])
+        "overrides the normal algorithm (and the outcome is cached).\n",
+    ),
+}
+
 
 # Python 3.6 has slightly different docstrings than 3.7
 if LooseVersion(sys.version) >= LooseVersion("3.7"):
@@ -725,9 +719,9 @@ else:
         ('__sizeof__', "__sizeof__() -> int\nsize of object in memory, in bytes")
     })
 
-_filtered_builtin_properties = set([
+_filtered_builtin_properties = {
     ('__weakref__', "list of weak references to the object (if defined)")
-])
+}
 
 def render_class(state: State, path, class_, env):
     logging.debug("generating %s.html", '.'.join(path))

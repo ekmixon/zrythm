@@ -31,7 +31,7 @@ from pygments.token import *
 class AnsiLexer(RegexLexer):
     name = 'Ansi escape lexer'
 
-    def callback(lexer, match):
+    def callback(self, match):
         bright = match.group(1)
         color = match.group(2)
         text = match.group(3)
@@ -68,12 +68,12 @@ class AnsiLexer(RegexLexer):
 
         yield (match.start(), string_to_tokentype(token), text)
 
-    def callback_fg_color(lexer, match):
+    def callback_fg_color(self, match):
         token = 'Generic.AnsiForegroundColor{:02x}{:02x}{:02x}'.format(
             int(match.group(1)), int(match.group(2)), int(match.group(3)))
         yield (match.start, string_to_tokentype(token), match.group(4))
 
-    def callback_fg_bg_color(lexer, match):
+    def callback_fg_bg_color(self, match):
         token = 'Generic.AnsiForegroundBackgroundColor{:02x}{:02x}{:02x}'.format(
             int(match.group(1)), int(match.group(2)), int(match.group(3)))
         yield (match.start, string_to_tokentype(token), match.group(4))
